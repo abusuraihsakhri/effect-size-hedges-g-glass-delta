@@ -3,7 +3,6 @@ Command Line Interface for Effect Size Hedges G Glass Delta.
 """
 import argparse
 import csv
-import json
 import sys
 from agents.models import SystemTaskPayload
 from agents.supervisor import SystemSupervisor

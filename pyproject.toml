@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "effect-size-hedges-g-glass-delta"
+version = "1.0.0"
+description = "Standardized Mean Difference: Cohen's d, Hedges' g, Glass's Delta with standard errors"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Dr. Abu Suraih Sakhri"}
+]
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+]
+
+[project.optional-dependencies]
+web = ["fastapi>=0.110", "uvicorn>=0.29"]
+test = ["pytest>=8.0"]
+
+[project.scripts]
+effect-size = "effect_sizes:main"
+
+[tool.setuptools]
+py-modules = ["effect_sizes", "enrichment", "simulator", "cli"]
+
+[tool.setuptools.packages.find]
+include = ["agents*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "."]
+python_files = ["test_*.py"]

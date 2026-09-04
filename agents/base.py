@@ -8,6 +8,7 @@ import json
 import time
 import hmac
 import hashlib
+import secrets
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
 from pydantic import BaseModel, Field
@@ -38,7 +39,7 @@ def assert_no_phi(text: str) -> None:
         return
     for pattern in PHI_PATTERNS:
         if pattern.search(str(text)):
-            raise SecurityException(f"PHI Outbound Guard Violation: Sensitive identifier detected with pattern {pattern.pattern}")
+            raise SecurityException("PHI Outbound Guard Violation: Sensitive identifier detected in outbound content.")
 
 
 class PHIGuard:
@@ -57,7 +58,13 @@ class PHIGuard:
 class AuditTrail:
     """Cryptographic Tamper-Evident HMAC-SHA256 Audit Trail."""
     def __init__(self, secret_key: Optional[str] = None):
-        self.secret_key = (secret_key or os.getenv("AUDIT_SECRET_KEY", "effect-size-hedges-g-glass-delta-master-audit-key-2026")).encode("utf-8")
+        env_key = os.getenv("AUDIT_SECRET_KEY")
+        if secret_key:
+            self.secret_key = secret_key.encode("utf-8")
+        elif env_key:
+            self.secret_key = env_key.encode("utf-8")
+        else:
+            self.secret_key = secrets.token_bytes(32)
         self.logs: List[Dict[str, Any]] = []
 
     def log(self, actor: str, actor_tier: str, event_type: str, details: Dict[str, Any]) -> Dict[str, Any]:
