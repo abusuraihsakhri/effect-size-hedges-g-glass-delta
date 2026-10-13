@@ -146,7 +146,7 @@ def test_batch_statistical_columns_and_values(tmp_path):
     import csv
     src = tmp_path / "stats.csv"
     out = tmp_path / "results.csv"
-    src.write_text("mean1,mean2,std1,std2,n1,n2\\n10,8,2,2,30,30\\n", encoding="utf-8")
+    src.write_text("mean1,mean2,std1,std2,n1,n2\n10,8,2,2,30,30\n", encoding="utf-8")
     process_batch(str(src), str(out))
     with out.open(newline="", encoding="utf-8") as handle:
         rows = list(csv.DictReader(handle))
@@ -160,7 +160,7 @@ def test_batch_statistical_columns_and_values(tmp_path):
 def test_batch_invalid_row_reports_line_without_writing(tmp_path):
     src = tmp_path / "stats.csv"
     out = tmp_path / "results.csv"
-    src.write_text("mean1,mean2,std1,std2,n1,n2\\n10,8,0,0,30,30\\n", encoding="utf-8")
+    src.write_text("mean1,mean2,std1,std2,n1,n2\n10,8,0,0,30,30\n", encoding="utf-8")
     with pytest.raises(ValueError, match="row 2"):
         process_batch(str(src), str(out))
     assert not out.exists()
