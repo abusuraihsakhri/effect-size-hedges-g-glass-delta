@@ -1,5 +1,5 @@
 """
-Enterprise Security, PHI Outbound Guard, and HMAC-SHA256 Audit Trail.
+Identifier pattern screening and in-memory HMAC-SHA256 audit trail.
 
 """
 import os
@@ -26,7 +26,7 @@ PHI_PATTERNS = [
 
 
 class SecurityException(Exception):
-    """Raised when outbound data violates HIPAA Safe Harbor or contains raw PHI."""
+    """Raised on identifier-like patterns; screening is not complete de-identification."""
     pass
 
 
