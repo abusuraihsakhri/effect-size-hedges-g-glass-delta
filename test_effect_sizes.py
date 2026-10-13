@@ -101,11 +101,71 @@ def test_calculate_metrics_classification_negligible():
 
 
 def test_calculate_metrics_invalid_sample_size():
-    # Should handle n < 1 gracefully
-    res = calculate_metrics(mean1=10.0, mean2=8.0, std1=2.0, std2=2.0, n1=0, n2=0)
-    assert "score" in res
+    with pytest.raises(ValueError, match="at least 2"):
+        calculate_metrics(mean1=10.0, mean2=8.0, std1=2.0, std2=2.0, n1=0, n2=0)
 
 
 def test_process_batch_file_not_found(tmp_path):
     with pytest.raises(FileNotFoundError):
         process_batch(str(tmp_path / "nonexistent.csv"), str(tmp_path / "out.csv"))
+
+
+@pytest.mark.parametrize("n1,n2", [(1, 10), (10, 1), (2.5, 9), (-1, 3)])
+def test_invalid_group_sizes(n1, n2):
+    with pytest.raises(ValueError):
+        calculate_metrics(mean1=10, mean2=8, std1=2, std2=2, n1=n1, n2=n2)
+
+
+@pytest.mark.parametrize("std1,std2", [(0, 0), (-1, 2), (float("nan"), 2),
+                                         (float("inf"), 2)])
+def test_undefined_or_invalid_variance(std1, std2):
+    with pytest.raises(ValueError):
+        calculate_metrics(mean1=10, mean2=8, std1=std1, std2=std2, n1=30, n2=30)
+
+
+def test_partial_statistics_are_not_treated_as_legacy():
+    with pytest.raises(ValueError, match="requires"):
+        calculate_metrics(mean1=10, mean2=8, std1=2)
+
+
+def test_correct_unbalanced_pooled_sd():
+    import math
+    d = cohens_d(12, 8, 2, 4, 10, 30)
+    expected = 4 / math.sqrt((9 * 4 + 29 * 16) / 38)
+    assert d == pytest.approx(expected)
+
+
+def test_nonfinite_data_rejected():
+    with pytest.raises(ValueError):
+        standard_error_effect_size(float("nan"), 30, 30)
+    with pytest.raises(ValueError):
+        glasses_delta(1, 2, float("inf"))
+
+
+def test_batch_statistical_columns_and_values(tmp_path):
+    import csv
+    src = tmp_path / "stats.csv"
+    out = tmp_path / "results.csv"
+    src.write_text("mean1,mean2,std1,std2,n1,n2\\n10,8,2,2,30,30\\n", encoding="utf-8")
+    process_batch(str(src), str(out))
+    with out.open(newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    assert len(rows) == 1
+    assert float(rows[0]["cohens_d"]) == pytest.approx(1)
+    assert float(rows[0]["hedges_g"]) < 1
+    assert float(rows[0]["glasses_delta"]) == pytest.approx(1)
+    assert float(rows[0]["standard_error"]) > 0
+
+
+def test_batch_invalid_row_reports_line_without_writing(tmp_path):
+    src = tmp_path / "stats.csv"
+    out = tmp_path / "results.csv"
+    src.write_text("mean1,mean2,std1,std2,n1,n2\\n10,8,0,0,30,30\\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="row 2"):
+        process_batch(str(src), str(out))
+    assert not out.exists()
+
+
+def test_legacy_mode_has_no_clinical_claim():
+    result = calculate_metrics(v1=12, v2=4)
+    assert "not a statistical effect size" in result["clinical_recommendation"]
