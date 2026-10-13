@@ -20,8 +20,8 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-web = ["fastapi>=0.110,<1", "uvicorn>=0.29,<1"]
-test = ["pytest>=8.0,<10"]
+web = ["fastapi>=0.110,<0.130", "uvicorn>=0.29,<1"]
+test = ["pytest>=8.0,<10", "httpx>=0.27,<1"]
 
 [project.scripts]
 effect-size = "effect_sizes:main"
