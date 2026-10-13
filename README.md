@@ -1,214 +1,87 @@
-# Effect Size Hedges G Glass Delta
+# Effect Size: Cohen's d, Hedges' g, and Glass's Delta
 
-> **Domain:** Clinical Decision Support & Biomedical Computing  
-> **Reference Guidelines & Standards:** `Standard Clinical Formulations & ISO/IEC Quality Frameworks`
+A research calculator for independent-group standardized mean differences. Use it in a browser, as a Python library, from the CLI, or with a local FastAPI service.
 
-<div align="center">
+## Features
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-![Python](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-3776AB.svg?logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688.svg?logo=fastapi&logoColor=white)
-![Audit Trail](https://img.shields.io/badge/Audit-HMAC--SHA256_Tamper--Evident-brightgreen.svg)
-![Zero-PHI Guard](https://img.shields.io/badge/Guard-Zero--PHI_Outbound-blue.svg)
-![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg?logo=docker&logoColor=white)
+- **Cohen's d:** difference in group means divided by the sample-size-weighted pooled standard deviation.
+- **Hedges' g:** Cohen's d multiplied by the approximate small-sample bias factor, J(df) ≈ 1 − 3/(4df − 1), where df = n1 + n2 − 2.
+- **Glass's delta:** difference in means divided by **group 2's** (control) sample standard deviation.
+- **Standard error:** large-sample approximation for **Cohen's d**, not an exact SE for g or Glass's delta.
+- **CSV processing:** preserve source columns and output all calculated statistics.
+- **Browser application:** self-contained HTML/JavaScript calculations, no backend or third-party assets.
 
-</div>
+The sign of each effect size is *group 1 minus group 2*. Each group must contain at least two observations; both SDs must be nonnegative, and the control SD and pooled SD must be positive. Non-finite inputs and undefined standardized effects are rejected.
 
----
+Conventional absolute-magnitude bands (0.2, 0.5, 0.8) are **descriptive**, not validated clinical thresholds. Calculations assume independent groups; repeated-measures effects require other estimators.
 
-## 📖 What It Does
+## Browser app
 
-Computes standardized mean difference effect sizes:
-- **Cohen's d** — pooled standard deviation effect size
-- **Hedges' g** — Cohen's d with small-sample bias correction
-- **Glass's Delta** — control-group standard deviation effect size (unequal variance)
-- **Standard Error** — standard error of the effect size estimate
+Open [the local browser app](web/index.html) or the deployed GitHub Pages application when enabled. Enter means, sample SDs, and group sizes, and select **Calculate effect sizes**. Batch CSV files must have these columns:
 
-Zero-dependency Python implementation with single and batch evaluation.
+**mean1, mean2, std1, std2, n1, n2**
 
-Author: Dr. Abu Suraih Sakhri
-License: MIT
+The browser preserves additional columns, reports malformed rows, and downloads a results CSV. Maximum 2 MB and 10,000 data rows. Study values remain on the user's device. JavaScript performs the calculations directly, so Pyodide is not needed.
 
----
+## Python / CLI
 
-## ⚙️ Key Capabilities & Algorithmic Modules
+Python 3.10 or later. From the repository directory:
 
-### 🔬 Analytical Functions
+~~~bash
+python -m pip install -e ".[web,test]"
+python -m pytest -q
+node --test web/test-app.cjs    # optional; requires Node.js
+~~~
 
-- **`cohens_d(mean1, mean2, std1, std2, n1, n2)`** — Cohen's d with pooled standard deviation
-- **`hedges_g(mean1, mean2, std1, std2, n1, n2)`** — Hedges' g with small-sample correction
-- **`glasses_delta(mean1, mean2, std_control)`** — Glass's delta using control group SD
-- **`standard_error_effect_size(d, n1, n2)`** — Standard error of the effect size
-- **`calculate_metrics(**kwargs)`** — Unified interface returning all metrics with classification
-- **`process_batch(input_csv, output_csv)`** — Batch CSV processing
+Single calculation:
 
----
+~~~bash
+effect-size single --mean1 10 --mean2 8 --std1 2 --std2 2 --n1 30 --n2 30
+~~~
 
-## 📐 Mathematical Formulation
+Batch CSV:
 
-### Cohen's d
-```
-d = (mean1 - mean2) / SD_pooled
-SD_pooled = sqrt(((n1-1)*SD1^2 + (n2-1)*SD2^2) / (n1+n2-2))
-```
+~~~bash
+effect-size batch -i statistical-input.csv -o results.csv
+~~~
 
-### Hedges' g
-```
-g = d * J(df)
-J(df) = 1 - 3 / (4*df - 1)   where df = n1 + n2 - 2
-```
+Python:
 
-### Glass's Delta
-```
-Δ = (mean1 - mean2) / SD_control
-```
+~~~python
+from effect_sizes import calculate_metrics
+result = calculate_metrics(mean1=10, mean2=8, std1=2, std2=2, n1=30, n2=30)
+print(result["hedges_g"])  # 0.987 (rounded)
+~~~
 
-### Standard Error
-```
-SE = sqrt((n1+n2)/(n1*n2) + d^2 / (2*(n1+n2)))
-```
+The historical v1/v2 mode is retained for compatibility, but is **not a statistical effect size**. The original [sample.csv](sample.csv) illustrates that legacy input format rather than independent-group statistics.
 
-### Effect Size Classification (Hedges' g)
-| Magnitude | |g| Range |
-|-----------|----------|
-| Negligible | < 0.2 |
-| Small | 0.2 – 0.5 |
-| Medium | 0.5 – 0.8 |
-| Large | ≥ 0.8 |
+## Optional API and demonstration audit
 
----
-
-## 💻 Installation
-
-```bash
-# Clone the repository
-git clone https://github.com/abusuraihsakhri/effect-size-hedges-g-glass-delta.git
-cd effect-size-hedges-g-glass-delta
-
-# Install core (no dependencies required for statistical functions)
-pip install -e .
-
-# Install with web API support
-pip install -e ".[web]"
-
-# Install with test dependencies
-pip install -e ".[test]"
-```
-
----
-
-## 💻 CLI Quickstart & Usage
-
-### 1. Single Evaluation (Statistical Mode)
-```bash
-python effect_sizes.py single --mean1 10.0 --mean2 8.0 --std1 2.0 --std2 2.0 --n1 30 --n2 30
-```
-
-### 2. Batch CSV Processing
-```bash
-python effect_sizes.py batch -i sample.csv -o results.csv
-```
-
-### 3. Enterprise CLI (Full Platform)
-```bash
-# Audit task evaluation
-python cli.py audit --task-id TASK-001 --primary 28.5 --secondary 14.2
-
-# Batch processing
-python cli.py batch -i sample.csv -o results.csv
-
-# Verify audit trail
-python cli.py verify-audit
-
-# Launch REST API server
+~~~bash
 python cli.py serve --host 127.0.0.1 --port 8000
-```
+~~~
 
-### Input Data Schema (Batch CSV)
+Open http://127.0.0.1:8000/ for the calculator or http://127.0.0.1:8000/audit-console for the separate demonstration audit workflow. POST /api/effect-size accepts the six statistical inputs; POST /api/audit evaluates illustrative project-specific thresholds. /health and /metrics report local process state. The mock chat provider performs no scientific inference.
 
-| Field | Description | Requirement |
-|:------|:------------|:------------|
-| `mean1` | Group 1 mean | Required for stats |
-| `mean2` | Group 2 mean | Required for stats |
-| `std1` | Group 1 standard deviation | Required for stats |
-| `std2` | Group 2 standard deviation | Required for stats |
-| `n1` | Group 1 sample size | Optional (default: 1) |
-| `n2` | Group 2 sample size | Optional (default: 1) |
+**Security limits:** The audit is not a validated clinical decision-support system. Its PHI screening uses a limited set of regular expressions, not comprehensive de-identification. The HMAC ledger is in memory and does not survive restarts; configure AUDIT_SECRET_KEY when a stable key is needed. API routes do not implement authentication. Do not supply patient information or expose the demonstration API publicly.
 
----
+## Docker
 
-## 🛡️ Security & Enterprise Architecture
+Generate an audit secret for a local Docker Compose session:
 
-* **Zero-PHI Outbound Interceptor:** Active regex inspection blocking SSNs, MRNs, phone numbers, and patient identifiers.
-* **Tamper-Evident HMAC-SHA256 Audit Trail:** Chained, cryptographically signed logs for every evaluation and state transition.
-* **FastAPI & Prometheus Telemetry:** Exposes OpenAPI 3.1 REST endpoints and operational Prometheus metrics (`/metrics`).
+~~~bash
+export AUDIT_SECRET_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+docker compose up --build
+~~~
 
----
+The Compose service binds to 127.0.0.1:8000. Never commit real keys or patient information.
 
-## 🧪 Testing & Verification
+## Technology and tests
 
-Run the automated test suite:
+The statistical module uses the Python standard library. The optional API uses FastAPI, Uvicorn, and Pydantic. The offline browser app uses vanilla JavaScript. Tests cover numeric formulas, invalid inputs, CSV, API, HMAC tamper detection, and JavaScript calculations. CI runs Python 3.10–3.12 and Node.js tests.
 
-```bash
-pytest -v
-```
+The enrichment.py modules contain illustrative threshold-based placeholders; names such as repeated measures, robust effects and meta-analysis do **not** mean those methods are implemented.
 
-Run with coverage:
+## License
 
-```bash
-pytest -v --cov=effect_sizes --cov=agents
-```
-
-Execute high-throughput batch simulation benchmarks:
-
-```bash
-python simulator.py 100
-```
-
----
-
-## 🐳 Container Deployment
-
-```bash
-docker build -t effect-size-hedges-g-glass-delta .
-docker run -p 8000:8000 -e AUDIT_SECRET_KEY=your-secret-key effect-size-hedges-g-glass-delta
-```
-
-Or with Docker Compose:
-
-```bash
-docker-compose up -d
-```
-
----
-
-## 📁 Project Structure
-
-```
-effect-size-hedges-g-glass-delta/
-├── effect_sizes.py          # Core statistical algorithms
-├── cli.py                   # Enterprise CLI interface
-├── enrichment.py            # Extended analytical engines
-├── simulator.py             # High-throughput stress testing
-├── agents/
-│   ├── __init__.py
-│   ├── base.py              # PHI guard, HMAC audit trail
-│   ├── models.py            # Pydantic data models
-│   ├── supervisor.py        # Multi-agent orchestrator
-│   ├── workers.py           # Specialized evaluation workers
-│   ├── api.py               # FastAPI REST endpoints
-│   ├── llm_factory.py       # LLM provider abstraction
-│   ├── learning.py          # Bayesian calibration engine
-│   ├── metrics.py           # Prometheus metrics collector
-│   └── streamer.py          # WebSocket telemetry broadcaster
-├── tests/
-│   ├── test_effect_size_hedges_g_glass_delta.py
-│   └── test_enrichment.py
-├── web/
-│   └── index.html           # Operations console UI
-├── test_effect_sizes.py     # Core algorithm tests
-├── sample.csv               # Example input data
-├── pyproject.toml           # Project configuration
-├── Dockerfile
-└── docker-compose.yml
-```
+MIT; see [LICENSE](LICENSE).
