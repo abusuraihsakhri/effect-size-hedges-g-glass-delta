@@ -72,6 +72,8 @@
 
   function escapeCSV(value) {
     var s = String(value === undefined || value === null ? '' : value);
+    // Neutralize spreadsheet formulas in user-supplied text on CSV export.
+    if (/^\s*[=+@-]/.test(s) && !/^[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?$/.test(s.trim())) s = "'" + s;
     return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
   }
 
