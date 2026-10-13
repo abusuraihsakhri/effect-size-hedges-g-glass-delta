@@ -44,7 +44,7 @@ jobs:
         node --check web/app.js
         node --test web/test-app.cjs
 
-    - name: Security SAST & Zero-PHI Audit
+    - name: Audit helper smoke check
       run: |
         python -c "
         from agents.base import PHIGuard, AuditLogger
