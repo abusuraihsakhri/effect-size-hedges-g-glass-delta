@@ -3,6 +3,7 @@ Supervisor Orchestrator & Operations Intelligence for Effect Size Hedges G Glass
 Domain: Clinical & Biomedical AI
 """
 import uuid
+import json
 from typing import Dict, Any, List, Optional
 from .base import AuditLogger, ActionExecutor, PHIGuard
 from .models import SystemTaskPayload, AgentAlert, ConsensusDossier, UrgencyLevel, SystemIntegrityStatus
@@ -22,9 +23,8 @@ class SystemSupervisor:
 
     def process_task(self, payload: SystemTaskPayload, actor: str = "SystemSupervisor") -> ConsensusDossier:
         # Zero-PHI outbound validation
-        PHIGuard.assert_no_phi(payload.task_id)
-        PHIGuard.assert_no_phi(payload.target_identifier)
-        PHIGuard.assert_no_phi(payload.status_descriptor)
+        # Inspect all user-controlled fields, including nested attributes.
+        PHIGuard.assert_no_phi(json.dumps(payload.model_dump(), default=str, allow_nan=False))
 
         # Multi-worker evaluations
         all_alerts: List[AgentAlert] = []

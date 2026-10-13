@@ -16,109 +16,109 @@ import os
 from typing import Dict, Any, List, Optional
 
 
-def cohens_d(mean1: float, mean2: float, std1: float, std2: float, n1: int = 1, n2: int = 1) -> float:
-    """
-    Compute Cohen's d: (mean1 - mean2) / pooled_standard_deviation.
+def _validate_samples(n1: int, n2: int) -> None:
+    """Require independently estimable sample standard deviations."""
+    if any(isinstance(n, bool) or not isinstance(n, int) or n < 2 for n in (n1, n2)):
+        raise ValueError("Both sample sizes must be integers of at least 2.")
 
-    Uses pooled standard deviation assuming equal or unequal sample sizes.
-    For n1=n2=1, falls back to using the average of std1 and std2 as denominator.
+
+def _finite_number(value: float, name: str) -> float:
+    try:
+        result = float(value)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError(f"{name} must be a finite number.") from exc
+    if not math.isfinite(result):
+        raise ValueError(f"{name} must be a finite number.")
+    return result
+
+
+def cohens_d(mean1: float, mean2: float, std1: float, std2: float, n1: int = 1, n2: int = 1) -> float:
+    """Independent-group Cohen's d, using the sample-size-weighted pooled SD.
+
+    Requires at least two observations per group. The pooled variance must
+    be strictly positive; d is undefined when both within-group SDs are zero.
     """
-    if n1 < 1 or n2 < 1:
-        raise ValueError("Sample sizes must be at least 1.")
+    _validate_samples(n1, n2)
+    mean1 = _finite_number(mean1, "mean1")
+    mean2 = _finite_number(mean2, "mean2")
+    std1 = _finite_number(std1, "std1")
+    std2 = _finite_number(std2, "std2")
     if std1 < 0 or std2 < 0:
         raise ValueError("Standard deviations must be non-negative.")
-    denominator = n1 + n2 - 2
-    if denominator <= 0:
-        # Not enough degrees of freedom for pooled SD; use average SD as fallback
-        pooled_std = (std1 + std2) / 2.0
-    else:
-        pooled_std = math.sqrt(((n1 - 1) * std1 ** 2 + (n2 - 1) * std2 ** 2) / denominator)
-    if pooled_std == 0:
-        return 0.0
-    return (mean1 - mean2) / pooled_std
+    df = n1 + n2 - 2
+    # hypot avoids premature overflow in the sum of squared deviations.
+    pooled_std = math.hypot(math.sqrt(n1 - 1) * std1, math.sqrt(n2 - 1) * std2) / math.sqrt(df)
+    if pooled_std <= 0 or not math.isfinite(pooled_std):
+        raise ValueError("Pooled standard deviation must be finite and positive.")
+    d = (mean1 - mean2) / pooled_std
+    if not math.isfinite(d):
+        raise ValueError("Computed effect size is not finite.")
+    return d
 
 
 def hedges_g(mean1: float, mean2: float, std1: float, std2: float, n1: int = 1, n2: int = 1) -> float:
-    """
-    Compute Hedges' g: Cohen's d with small-sample bias correction.
+    """Hedges' g with the usual approximate small-sample correction.
 
-    The correction factor J(df) = 1 - 3 / (4 * df - 1) where df = n1 + n2 - 2.
+    J(df) ≈ 1 - 3 / (4*df - 1), where df=n1+n2-2.
     """
     d = cohens_d(mean1, mean2, std1, std2, n1, n2)
     df = n1 + n2 - 2
-    if df <= 0:
-        return d
-    j = 1.0 - (3.0 / (4.0 * df - 1.0))
-    return d * j
+    return d * (1.0 - 3.0 / (4.0 * df - 1.0))
 
 
 def glasses_delta(mean1: float, mean2: float, std_control: float) -> float:
-    """
-    Compute Glass's Delta: (mean1 - mean2) / control_group_std.
-
-    Uses the control group standard deviation (unequal-variance approach).
-    """
+    """Glass's delta, standardized by group 2's (control) sample SD."""
+    mean1 = _finite_number(mean1, "mean1")
+    mean2 = _finite_number(mean2, "mean2")
+    std_control = _finite_number(std_control, "std_control")
     if std_control <= 0:
         raise ValueError("Control group standard deviation must be positive.")
-    return (mean1 - mean2) / std_control
+    delta = (mean1 - mean2) / std_control
+    if not math.isfinite(delta):
+        raise ValueError("Computed Glass's delta is not finite.")
+    return delta
 
 
 def standard_error_effect_size(d: float, n1: int, n2: int) -> float:
-    """
-    Compute the standard error of the effect size (Cohen's d / Hedges' g).
+    """Approximate large-sample standard error of Cohen's d.
 
-    SE = sqrt((n1 + n2) / (n1 * n2) + d^2 / (2 * (n1 + n2)))
+    This is not the exact SE of Hedges' g or Glass's delta.
     """
-    if n1 < 1 or n2 < 1:
-        raise ValueError("Sample sizes must be at least 1.")
-    if n1 + n2 == 0:
-        return float("inf")
-    return math.sqrt((n1 + n2) / (n1 * n2) + d ** 2 / (2 * (n1 + n2)))
+    _validate_samples(n1, n2)
+    d = _finite_number(d, "d")
+    variance = 1.0 / n1 + 1.0 / n2 + d ** 2 / (2.0 * (n1 + n2))
+    if not math.isfinite(variance):
+        raise ValueError("Computed effect-size variance is not finite.")
+    return math.sqrt(variance)
 
 
 def calculate_metrics(**kwargs) -> Dict[str, Any]:
+    """Compute independent-group standardized mean differences.
+
+    Statistical mode requires mean1, mean2, std1, std2, n1, and n2.
+    Group 2 is the control group for Glass's delta. The legacy v1/v2
+    scoring behavior is retained solely for compatibility, not inference.
     """
-    Core domain algorithm for effect-size-hedges-g-glass-delta.
+    params = {k: v for k, v in kwargs.items() if v is not None and k not in ("func", "command")}
+    required_stats = ("mean1", "mean2", "std1", "std2")
+    if any(k in params for k in required_stats):
+        missing = [k for k in (*required_stats, "n1", "n2") if k not in params or params[k] == ""]
+        if missing:
+            raise ValueError("Statistical mode requires: " + ", ".join(missing))
+        def sample_size(key: str) -> int:
+            value = _finite_number(params[key], key)
+            if not value.is_integer() or value < 2:
+                raise ValueError(f"{key} must be an integer of at least 2.")
+            return int(value)
 
-    Computes Cohen's d, Hedges' g, and Glass's delta from input parameters.
-
-    Expected keyword arguments:
-        mean1, mean2: group means
-        std1, std2: group standard deviations
-        n1, n2: sample sizes (default 1)
-    Falls back to legacy behavior if statistical params are not provided.
-    """
-    params: Dict[str, Any] = {}
-    for k, v in kwargs.items():
-        if v is not None:
-            try:
-                params[k] = float(v)
-            except (ValueError, TypeError):
-                params[k] = str(v)
-
-    # Check if we have statistical parameters for proper effect size computation
-    has_stats = all(k in params for k in ("mean1", "mean2", "std1", "std2"))
-
-    if has_stats:
-        mean1 = float(params["mean1"])
-        mean2 = float(params["mean2"])
-        std1 = float(params["std1"])
-        std2 = float(params["std2"])
-        n1 = int(params.get("n1", 1))
-        n2 = int(params.get("n2", 1))
-
-        if n1 < 1:
-            n1 = 1
-        if n2 < 1:
-            n2 = 1
-
+        n1, n2 = sample_size("n1"), sample_size("n2")
+        mean1, mean2, std1, std2 = (_finite_number(params[k], k) for k in required_stats)
         d = cohens_d(mean1, mean2, std1, std2, n1, n2)
         g = hedges_g(mean1, mean2, std1, std2, n1, n2)
         delta = glasses_delta(mean1, mean2, std2)
         se = standard_error_effect_size(d, n1, n2)
-
         score = round(g, 4)
-        result = {
+        return {
             "tool": "effect-size-hedges-g-glass-delta",
             "cohens_d": round(d, 4),
             "hedges_g": round(g, 4),
@@ -131,26 +131,28 @@ def calculate_metrics(**kwargs) -> Dict[str, Any]:
             "clinical_recommendation": _clinical_recommendation(g),
             "inputs_evaluated": len(params),
         }
-    else:
-        # Legacy fallback: deterministic weighted sum for backwards compatibility
-        numeric_vals = [val for val in params.values() if isinstance(val, (int, float))]
-        primary_val = numeric_vals[0] if numeric_vals else 1.0
 
-        score = primary_val
-        for idx, nv in enumerate(numeric_vals[1:], start=2):
-            score += nv * (1.0 / idx)
-
-        rounded_score = round(score, 2)
-        result = {
-            "tool": "effect-size-hedges-g-glass-delta",
-            "score": rounded_score,
-            "classification": _classify_score(rounded_score),
-            "clinical_recommendation": _clinical_recommendation_legacy(rounded_score),
-            "inputs_evaluated": len(params),
-            "note": "Legacy mode: provide mean1, mean2, std1, std2 for statistical effect sizes.",
-        }
-
-    return result
+    # Historical, non-statistical scoring scheme. Not an effect-size estimate.
+    numeric_vals = []
+    for value in params.values():
+        try:
+            numeric_vals.append(_finite_number(value, "legacy input"))
+        except ValueError:
+            continue
+    score = numeric_vals[0] if numeric_vals else 1.0
+    for i, value in enumerate(numeric_vals[1:], start=2):
+        score += value / i
+    if not math.isfinite(score):
+        raise ValueError("Legacy score is not finite.")
+    score = round(score, 2)
+    return {
+        "tool": "effect-size-hedges-g-glass-delta",
+        "score": score,
+        "classification": _classify_score(score),
+        "clinical_recommendation": _clinical_recommendation_legacy(score),
+        "inputs_evaluated": len(params),
+        "note": "Legacy mode is not a validated effect size; supply all six statistical inputs.",
+    }
 
 
 def _classify_effect(g: float) -> str:
@@ -167,16 +169,8 @@ def _classify_effect(g: float) -> str:
 
 
 def _clinical_recommendation(g: float) -> str:
-    """Map effect size to clinical recommendation."""
-    abs_g = abs(g)
-    if abs_g < 0.2:
-        return "Negligible effect — no clinically meaningful difference detected."
-    elif abs_g < 0.5:
-        return "Small effect — monitor and consider secondary evaluation."
-    elif abs_g < 0.8:
-        return "Medium effect — close observation recommended."
-    else:
-        return "Large effect — clinically significant difference; consider intervention."
+    """Magnitude alone does not justify clinical treatment recommendations."""
+    return "Effect-size magnitude is descriptive; assess uncertainty and clinical context."
 
 
 def _classify_score(score: float) -> str:
@@ -190,13 +184,8 @@ def _classify_score(score: float) -> str:
 
 
 def _clinical_recommendation_legacy(score: float) -> str:
-    """Legacy clinical recommendation based on raw score."""
-    if score < 10.0:
-        return "Standard monitoring or negative cutoff"
-    elif score < 25.0:
-        return "Close observation or secondary evaluation"
-    else:
-        return "Urgent clinical intervention or primary positive finding"
+    """The retained legacy score has no validated clinical interpretation."""
+    return "Legacy score is not a statistical effect size or clinical decision rule."
 
 
 def process_single(args) -> None:
@@ -207,32 +196,34 @@ def process_single(args) -> None:
 
 
 def process_batch(input_csv: str, output_csv: str) -> None:
-    import os
+    """Evaluate each CSV row and preserve source columns in the output."""
     if not os.path.isfile(input_csv):
         raise FileNotFoundError(f"Input CSV not found: {input_csv}")
-
-    with open(input_csv, mode="r", encoding="utf-8-sig") as f:
+    with open(input_csv, mode="r", encoding="utf-8-sig", newline="") as f:
         reader = csv.DictReader(f)
         fieldnames = list(reader.fieldnames or [])
+        if not fieldnames or len(fieldnames) != len(set(fieldnames)):
+            raise ValueError("CSV requires a header row with unique column names.")
         rows = list(reader)
 
-    out_fields = fieldnames + ["score", "classification", "clinical_recommendation"]
-    out_rows = []
-
-    for r in rows:
-        calc_res = calculate_metrics(**r)
-        row_dict = dict(r)
-        row_dict["score"] = calc_res["score"]
-        row_dict["classification"] = calc_res["classification"]
-        row_dict["clinical_recommendation"] = calc_res["clinical_recommendation"]
-        out_rows.append(row_dict)
+    metric_fields = ("cohens_d", "hedges_g", "glasses_delta", "standard_error",
+                     "score", "classification", "clinical_recommendation")
+    out_fields = list(dict.fromkeys([*fieldnames, *metric_fields]))
+    results = []
+    for row_number, row in enumerate(rows, start=2):
+        try:
+            if None in row:
+                raise ValueError("CSV row has more columns than the header.")
+            result = calculate_metrics(**row)
+        except (ValueError, TypeError) as exc:
+            raise ValueError(f"Invalid CSV row {row_number}: {exc}") from exc
+        results.append({**row, **{k: result[k] for k in metric_fields if k in result}})
 
     with open(output_csv, mode="w", encoding="utf-8", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=out_fields)
         writer.writeheader()
-        writer.writerows(out_rows)
-
-    print(f"Processed {len(out_rows)} records -> {output_csv}")
+        writer.writerows(results)
+    print(f"Processed {len(results)} records -> {output_csv}")
 
 
 def main(argv=None):

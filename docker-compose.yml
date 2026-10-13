@@ -1,13 +1,11 @@
-version: '3.8'
-
 services:
   effect-size-hedges-g-glass-delta:
     build: .
     container_name: effect-size-hedges-g-glass-delta
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
-      - AUDIT_SECRET_KEY=effect-size-hedges-g-glass-delta-prod-audit-key-2026
+      - AUDIT_SECRET_KEY=${AUDIT_SECRET_KEY:?Set AUDIT_SECRET_KEY before starting the service}
       - MODEL_PROVIDER=mock
     restart: unless-stopped
     healthcheck:
