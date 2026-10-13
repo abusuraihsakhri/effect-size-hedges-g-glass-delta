@@ -1,5 +1,7 @@
 # Effect Size: Cohen's d, Hedges' g, and Glass's Delta
 
+### [Open the Live Application →](https://abusuraihsakhri.github.io/effect-size-hedges-g-glass-delta/)
+
 A research calculator for independent-group standardized mean differences. Use it in a browser, as a Python library, from the CLI, or with a local FastAPI service.
 
 ## Features
