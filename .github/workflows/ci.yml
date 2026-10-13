@@ -31,6 +31,11 @@ jobs:
         python -m compileall -q effect_sizes.py cli.py agents enrichment.py
         effect-size single --mean1 10 --mean2 8 --std1 2 --std2 2 --n1 30 --n2 30
 
+    - name: Package and dependency consistency
+      run: |
+        python -m pip check
+        python -m pip wheel --no-deps -w /tmp/effect-size-wheels .
+
     - name: Run Pytest Suite
       run: pytest -q
 
@@ -47,3 +52,10 @@ jobs:
         assert AuditLogger.verify_integrity() is True
         print('Security & Zero-PHI Audit Passed!')
         "
+
+  container-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the production Docker image
+        run: docker build --tag effect-size-hedges-g-glass-delta:ci .
